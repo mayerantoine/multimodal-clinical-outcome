@@ -1,0 +1,19 @@
+name: cs6250-multimodal
+channels:
+  - defaults
+dependencies:
+  - python==3.8.10
+  - matplotlib
+  - pandas
+  - tqdm
+  - jupyter
+  - pytables
+  - pip
+  - pip:
+    - torch
+    - torchtext
+    - gensim
+    - notebook
+    - numpy
+    - spacy
+  
