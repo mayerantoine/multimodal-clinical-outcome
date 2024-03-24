@@ -8,6 +8,11 @@ ID_COLUMNS = ["subject_id", "hadm_id", "icustay_id"]
 DATASET_FILE_PATH = "../data/all_hourly_data.h5"
 OUTPUT_PATH = "../output"
 
+SEED = 123456
+SAMPLE_SIZE = 1000
+
+np.random.seed(SEED)
+
 
 def read_data():
     df_patients = pd.read_hdf(DATASET_FILE_PATH, "patients")
@@ -56,6 +61,12 @@ def split_data(df_features, df_labels, trainPercentage, validationPercentage):
 
     np.random.shuffle(subjectIds)
 
+    ### SELECT A SAMPLE SAMPLE PATIENTS FOR EXPERIMENTS
+    subjectIds = np.random.choice(subjectIds,replace=False,size= SAMPLE_SIZE)
+
+    # We return labels and ids of the sample to use
+    labels = df_labels[df_labels.index.get_level_values("subject_id").isin(subjectIds)]
+
     subjectIdsCount = len(subjectIds)
     trainEnd = int(subjectIdsCount * trainPercentage)
     validationEnd = int((trainPercentage + validationPercentage) * subjectIdsCount)
@@ -64,16 +75,18 @@ def split_data(df_features, df_labels, trainPercentage, validationPercentage):
     validationSubjectIds = subjectIds[trainEnd:validationEnd]
     testSubjectIds = subjectIds[validationEnd:]
 
+
+
     def create_set(ids):
         X = df_features[df_features.index.get_level_values("subject_id").isin(ids)]
         Y = df_labels[df_labels.index.get_level_values("subject_id").isin(ids)]
 
         return X, Y
 
-    return create_set(trainSubjectIds), create_set(validationSubjectIds), create_set(testSubjectIds)
+    return create_set(trainSubjectIds), create_set(validationSubjectIds), create_set(testSubjectIds), labels
 
 
-def output_to_file(train, validation, test):
+def output_to_file(train, validation, test,all_labels):
     train[0].to_pickle(f"{OUTPUT_PATH}/train_features.pkl")
     train[1].to_pickle(f"{OUTPUT_PATH}/train_labels.pkl")
 
@@ -83,16 +96,22 @@ def output_to_file(train, validation, test):
     test[0].to_pickle(f"{OUTPUT_PATH}/test_features.pkl")
     test[1].to_pickle(f"{OUTPUT_PATH}/test_labels.pkl")
 
+    all_labels.to_pickle(f"{OUTPUT_PATH}/all_labels.pkl")
+
 
 if __name__ == '__main__':
+
+    print('===> Loading entire datasets')
     patients, vitals_labs = read_data()
 
+    print('===> Filtering the data......')
     patients, vitals_labs = filter_data(patients, vitals_labs)
 
     vitals_labs = clean_data(vitals_labs)
 
     labels = create_labels(patients)
 
-    trainSet, validationSet, testSet = split_data(vitals_labs, labels, 0.7, 0.1)
+    print('===> Splitting the data......')
+    trainSet, validationSet, testSet, all_labels = split_data(vitals_labs, labels, 0.7, 0.1)
 
-    output_to_file(trainSet, validationSet, testSet)
+    output_to_file(trainSet, validationSet, testSet,all_labels)
