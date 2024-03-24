@@ -9,7 +9,7 @@ DATASET_FILE_PATH = "../data/all_hourly_data.h5"
 OUTPUT_PATH = "../output"
 
 SEED = 123456
-SAMPLE_SIZE = 1000
+SAMPLE_SIZE = 10
 
 np.random.seed(SEED)
 

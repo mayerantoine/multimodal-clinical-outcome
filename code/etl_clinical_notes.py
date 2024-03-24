@@ -65,6 +65,7 @@ def main():
     print("loading patients..and labels..")
     all_labels,patients = _load_patient_ids()
     notes_df = _load_clinical_notes()
+   
 
     print("filtering clincal notes...")
     patients_notes = _filter_clinical_notes(patients,notes_df,all_labels)
