@@ -11,6 +11,7 @@ OUTPUT_MODEL_PATH = "../output/model/"
 EPOCHS = 10
 BATCH_SIZE = 8
 
+## TODO we might switch to pytorch lightning - less verbose, less code , more features
 def train(data_loader,model,criterion,optimizer):
     model.train()
     for i, (input, target) in enumerate(data_loader):
@@ -28,6 +29,19 @@ def train(data_loader,model,criterion,optimizer):
 
 def main():
 
+    ## TODO argparse argument for LABEL mort_hosp, mmort_ics, los3, los7
+    # Data loading
+    print('===> Loading entire datasets')
+    train_seqs = pickle.load(open(f"{OUTPUT_PATH}/train_features.pkl", 'rb'))
+    train_labels = pickle.load(open(f"{OUTPUT_PATH}/train_labels.pkl", 'rb'))
+    valid_seqs = pickle.load(open(f"{OUTPUT_PATH}/validation_features.pkl", 'rb'))
+    valid_labels = pickle.load(open(f"{OUTPUT_PATH}/validation_labels.pkl", 'rb'))
+    test_seqs = pickle.load(open(f"{OUTPUT_PATH}/test_features.pkl", 'rb'))
+    test_labels = pickle.load(open(f"{OUTPUT_PATH}/test_labels.pkl", 'rb'))
+
+
+    ## TODO We need to select patient with embeddings from train, valid and test
+    
     patient_embed = pickle.load(open(f"{OUTPUT_PATH}/patient_embeddings.pkl", 'rb'))
     all_labels = pickle.load(open(f"{OUTPUT_PATH}/all_labels.pkl", 'rb'))
 
@@ -42,6 +56,7 @@ def main():
     train_loader = DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE,collate_fn=utils.collate_embeddings)
 
 
+    ## TODO this is only the Proposed model branch
     model_conv = ConvolutionNER(dim_input=100)  
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.AdamW(model_conv.parameters(),lr=1e-3)
@@ -51,8 +66,6 @@ def main():
         train(train_loader,model_conv,criterion,optimizer)
 
 
-
- 
 
 if __name__ =="__main__":
     main()
