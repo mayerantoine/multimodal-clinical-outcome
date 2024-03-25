@@ -69,8 +69,6 @@ class ConvolutionNERLightning(pl.LightningModule):
     x,y = batch
     output  = self(x)
     loss = torch.nn.functional.cross_entropy(output,y)
-
-
     return loss
 
 
