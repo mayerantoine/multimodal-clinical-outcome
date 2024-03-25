@@ -57,7 +57,7 @@ def main():
     print(len(seqs))
 
     labels_mort_hosp = labels["mort_hosp"] .tolist()
-    seqs_embed = seqs['feature_embeddings'].tolist()
+    seqs_embed = seqs['concat'].tolist()
 
     train_dataset = utils.EmbeddingsDataset(seqs_embed,labels_mort_hosp)
 
@@ -65,7 +65,7 @@ def main():
                               num_workers=4,persistent_workers=True)
 
 
-    model_conv = ConvolutionNERLightning(100)
+    model_conv = ConvolutionNERLightning(200)
     trainer = pl.Trainer(max_epochs=EPOCHS)
 
     trainer.fit(model_conv,train_loader)

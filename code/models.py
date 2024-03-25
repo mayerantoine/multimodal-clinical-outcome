@@ -70,7 +70,6 @@ class ConvolutionNERLightning(pl.LightningModule):
     output  = self(x)
     loss = torch.nn.functional.cross_entropy(output,y)
 
-    self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
     return loss
 
