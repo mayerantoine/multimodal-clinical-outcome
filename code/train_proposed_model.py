@@ -3,7 +3,8 @@ import torch
 import utils
 #from utils import collate_embeddings
 from torch.utils.data import DataLoader
-from models import ConvolutionNER
+from models import ConvolutionNER, ConvolutionNERLightning
+import pytorch_lightning as pl
 
 OUTPUT_PATH = "../output"
 OUTPUT_MODEL_PATH = "../output/model/"
@@ -47,23 +48,27 @@ def main():
 
     patient_ids_with_embeddings = [id for id in patient_embed.SUBJECT_ID]
 
+    print("# patients with ids:",len(patient_ids_with_embeddings))
+
     labels = all_labels[all_labels.index.get_level_values("subject_id").isin(patient_ids_with_embeddings)]
+    seqs = patient_embed[ patient_embed['SUBJECT_ID'].isin(patient_ids_with_embeddings) ]
+
+    print(len(labels))
+    print(len(seqs))
+
     labels_mort_hosp = labels["mort_hosp"] .tolist()
-    seqs = patient_embed['feature_embeddings'].tolist()
+    seqs_embed = seqs['feature_embeddings'].tolist()
 
-    train_dataset = utils.EmbeddingsDataset(seqs,labels_mort_hosp)
+    train_dataset = utils.EmbeddingsDataset(seqs_embed,labels_mort_hosp)
 
-    train_loader = DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE,collate_fn=utils.collate_embeddings)
+    train_loader = DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE,collate_fn=utils.collate_embeddings,
+                              num_workers=4,persistent_workers=True)
 
 
-    ## TODO this is only the Proposed model branch
-    model_conv = ConvolutionNER(dim_input=100)  
-    criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.AdamW(model_conv.parameters(),lr=1e-3)
+    model_conv = ConvolutionNERLightning(100)
+    trainer = pl.Trainer(max_epochs=EPOCHS)
 
-    for epoch in range(EPOCHS):
-        print(f"Epochs={epoch}")
-        train(train_loader,model_conv,criterion,optimizer)
+    trainer.fit(model_conv,train_loader)
 
 
 
