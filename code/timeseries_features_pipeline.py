@@ -45,6 +45,13 @@ def clean_data(df_vitals_labs):
     return df_vitals_labs
 
 
+def normalize_data(df_vitals_labs):
+    vitals_labs_min = df_vitals_labs.min()
+    vitals_labs_max = df_vitals_labs.max()
+
+    return (df_vitals_labs - vitals_labs_min) / (vitals_labs_max - vitals_labs_min)
+
+
 def create_labels(df_patients):
     df_labels = df_patients[["los_icu", "mort_hosp", "mort_icu"]].copy()
 
@@ -62,7 +69,7 @@ def split_data(df_features, df_labels, trainPercentage, validationPercentage):
     np.random.shuffle(subjectIds)
 
     ### SELECT A SAMPLE SAMPLE PATIENTS FOR EXPERIMENTS
-    subjectIds = np.random.choice(subjectIds,replace=False,size= SAMPLE_SIZE)
+    subjectIds = np.random.choice(subjectIds, replace=False, size=SAMPLE_SIZE)
 
     # We return labels and ids of the sample to use
     labels = df_labels[df_labels.index.get_level_values("subject_id").isin(subjectIds)]
@@ -75,8 +82,6 @@ def split_data(df_features, df_labels, trainPercentage, validationPercentage):
     validationSubjectIds = subjectIds[trainEnd:validationEnd]
     testSubjectIds = subjectIds[validationEnd:]
 
-
-
     def create_set(ids):
         X = df_features[df_features.index.get_level_values("subject_id").isin(ids)]
         Y = df_labels[df_labels.index.get_level_values("subject_id").isin(ids)]
@@ -86,7 +91,7 @@ def split_data(df_features, df_labels, trainPercentage, validationPercentage):
     return create_set(trainSubjectIds), create_set(validationSubjectIds), create_set(testSubjectIds), labels
 
 
-def output_to_file(train, validation, test,all_labels):
+def output_to_file(train, validation, test, all_labels):
     train[0].to_pickle(f"{OUTPUT_PATH}/train_features.pkl")
     train[1].to_pickle(f"{OUTPUT_PATH}/train_labels.pkl")
 
@@ -100,18 +105,21 @@ def output_to_file(train, validation, test,all_labels):
 
 
 if __name__ == '__main__':
-
     print('===> Loading entire datasets')
     patients, vitals_labs = read_data()
 
     print('===> Filtering the data......')
     patients, vitals_labs = filter_data(patients, vitals_labs)
 
+    print('===> Cleaning the data......')
     vitals_labs = clean_data(vitals_labs)
+
+    print('===> Normalizing the data......')
+    vitals_labs = normalize_data(vitals_labs)
 
     labels = create_labels(patients)
 
     print('===> Splitting the data......')
     trainSet, validationSet, testSet, all_labels = split_data(vitals_labs, labels, 0.7, 0.1)
 
-    output_to_file(trainSet, validationSet, testSet,all_labels)
+    output_to_file(trainSet, validationSet, testSet, all_labels)
