@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+
 from operator import itemgetter
 from torch.utils.data import TensorDataset, Dataset
 
@@ -10,6 +11,21 @@ class EmbeddingsDataset(Dataset):
             raise ValueError("Seqs and Labels have different lengths")
         self.labels = labels
         self.seqs = seqs
+    
+    def __len__(self):
+        return len(self.labels)
+    
+    def __getitem__(self,index):
+        return self.seqs[index], self.labels[index]
+    
+
+class TimeSeriesDataset(Dataset):
+    def __init__(self,seqs,labels):
+
+        if len(seqs) != len(labels):
+            raise ValueError("Seqs and Labels have different lengths")
+        self.labels = labels
+        self.seqs = np.asarray(seqs,dtype=np.float32)
     
     def __len__(self):
         return len(self.labels)

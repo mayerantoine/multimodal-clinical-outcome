@@ -5,6 +5,7 @@ dependencies:
   - python==3.8.10
   - matplotlib
   - pandas
+  - scikit-learn
   - tqdm
   - jupyter
   - pytables

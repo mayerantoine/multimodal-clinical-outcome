@@ -71,6 +71,41 @@ class ConvolutionNERLightning(pl.LightningModule):
     loss = torch.nn.functional.cross_entropy(output,y)
     return loss
 
+  def configure_optimizers(self) :
+    return torch.optim.Adam(self.parameters(),lr=0.001)
+  
+
+class BaselineTimeSeriesGRU(pl.LightningModule):
+  def __init__(self, dim_input):
+    super(BaselineTimeSeriesGRU, self).__init__()
+
+    self.gru = nn.GRU(input_size=dim_input,hidden_size=256)
+    self.relu = nn.ReLU()
+    self.fc = nn.Linear(256,2)
+
+  def forward(self,input):
+    out,ht = self.gru(input)
+    out = self.relu(out[:,-1,:])
+    out = self.fc(out)
+
+    return out
+
+  def training_step(self,batch,batch_idx):
+    x,y = batch
+    output  = self(x)
+    train_loss = torch.nn.functional.cross_entropy(output,y)
+
+    self.log('train_loss',train_loss)
+    return train_loss
+  
+  def validation_step(self, batch,batch_idx):
+    x,y = batch
+    output  = self(x)
+    val_loss = torch.nn.functional.cross_entropy(output,y) 
+
+    self.log('val_loss',val_loss)
+    return val_loss
 
   def configure_optimizers(self) :
     return torch.optim.Adam(self.parameters(),lr=0.001)
+

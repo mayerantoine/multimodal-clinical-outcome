@@ -85,7 +85,8 @@ def main():
     df1_seq['word2vec']= df1_seq['flat_entities_seq'].apply(lambda x :_get_embeddings(model_word2vec,x))
     df1_seq['fasttext']= df1_seq['flat_entities_seq'].apply(lambda x :_get_embeddings(model_fasttext,x))
     df1_seq['concat']= df1_seq['flat_entities_seq'].apply(lambda x :_get_contact_embeddings(model_fasttext,model_word2vec,x))
-
+   
+    
     # patients ids with no embeddings extracted from text
     ids_no_emb_word2vec = [row.SUBJECT_ID for row in df1_seq.itertuples() if len(row.word2vec)<1]
     ids_no_emb_fasttext = [row.SUBJECT_ID for row in df1_seq.itertuples() if len(row.fasttext)<1]
@@ -97,9 +98,13 @@ def main():
 
     # remove patients with no embeddings
     df2_seq = df1_seq.set_index('SUBJECT_ID').drop(index=ids_no_emb_word2vec).reset_index()
-
-
-    pickle.dump(df2_seq[['SUBJECT_ID','word2vec','fasttext','concat']],open(f"{OUTPUT_PATH}/patient_embeddings.pkl",'wb'),pickle.HIGHEST_PROTOCOL)
+    df2_seq['avg_word2vec'] = df2_seq['word2vec'].apply(lambda x : np.mean(x,axis=0))
+    df2_seq['avg_fasttext'] = df2_seq['fasttext'].apply(lambda x : np.mean(x,axis=0))
+    df2_seq['avg_concat'] = df2_seq['concat'].apply(lambda x : np.mean(x,axis=0))
+    
+    pickle.dump(df2_seq[['SUBJECT_ID','word2vec','fasttext',
+                         'concat','avg_word2vec','avg_fasttext','avg_concat']],
+                open(f"{OUTPUT_PATH}/patient_embeddings.pkl",'wb'),pickle.HIGHEST_PROTOCOL)
 
 
 if __name__=="__main__":
