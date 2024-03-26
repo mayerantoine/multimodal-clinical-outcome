@@ -19,13 +19,11 @@ def plot_learning_curves(train_losses, valid_losses, train_accuracies, valid_acc
 	plt.title(f"{title_prefix} Accuracy Curve")
 	plt.xlabel("Epoch")
 	plt.ylabel("Accuracy")
-	plt.savefig(f"../output/plots/Accuracy_Curve.png")
+	plt.savefig(f"../output/plots/{title_prefix}_Accuracy_Curve.png")
 	plt.close()
 
 
-def plot_confusion_matrix(results, class_names, title_prefix):
-	y_true, y_pred = zip(*results)
-
+def plot_confusion_matrix(y_true, y_pred, class_names, title_prefix):
 	confusionMatrix = confusion_matrix(y_true, y_pred, normalize="true")
 
 	display = ConfusionMatrixDisplay(confusion_matrix=confusionMatrix, display_labels=class_names)
@@ -35,5 +33,5 @@ def plot_confusion_matrix(results, class_names, title_prefix):
 	plt.xticks(rotation=45)
 	plt.ylabel("True")
 	plt.tight_layout()
-	plt.savefig(f"../output/plots/Confusion_Matrix.png")
+	plt.savefig(f"../output/plots/{title_prefix}_Confusion_Matrix.png")
 	plt.close()

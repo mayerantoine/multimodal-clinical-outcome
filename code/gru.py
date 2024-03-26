@@ -5,14 +5,16 @@ import pandas as pd
 from torch.utils.data import DataLoader, TensorDataset
 import torch.optim as optim
 import time
+from sklearn.metrics import roc_auc_score, average_precision_score, f1_score
 from plots import plot_learning_curves, plot_confusion_matrix
 
-MODE = "TRAIN"  # Options: 'BOTH', 'TRAIN', 'TEST'
-TARGET_VARIABLE = "los_3"  # Options: 'mort_hosp', 'mort_icu', 'los_3', 'los_7'
+MODE = "BOTH"  # Options: 'BOTH', 'TRAIN', 'TEST'
+TARGET_VARIABLES = ["los_3", "los_7"]  # Options: 'mort_hosp', 'mort_icu', 'los_3', 'los_7'
 NUMBER_OF_WORKERS = 0
-EPOCHS = 50
-BATCH_SIZE = 10
+EPOCHS = 10
+BATCH_SIZE = 5
 LEARNING_RATE = 0.001
+SIGMOID_THRESHOLD = 0.5
 
 DATASET_FILE_PATH = "../output"
 PATH_OUTPUT = "../output/models/"
@@ -22,16 +24,26 @@ class GRU(nn.Module):
     def __init__(self):
         super(GRU, self).__init__()
 
-        self.gru = nn.GRU(104, 256, batch_first=True)
+        self.gru = nn.GRU(104, 256, dropout=0.2, batch_first=True)
         self.sigmoid = nn.Sigmoid()
         self.hiddenLayer = nn.Linear(256, 2)
 
     def forward(self, input):
         output, _ = self.gru(input)
-        output = self.sigmoid(output[:, -1, :])
-        output = self.hiddenLayer(output)
+        output = self.hiddenLayer(output[:, -1, :])
+        output = self.sigmoid(output)
 
         return output
+
+
+def sigmoid_predict(output):
+    results = []
+
+    with torch.no_grad():
+        for data in output:
+            results.append(int(data[1] > SIGMOID_THRESHOLD))
+
+    return torch.tensor(results)
 
 
 #
@@ -52,17 +64,12 @@ class Metrics:
         self.average = self.sum / self.count
 
 
-#
-# Citation: Jimeng Sun, (2024). CSE6250: Big Data Analytics in Healthcare Homework 4
-# Used code from utils.py
-#
-def calculate_accuracy(output, target):
+def calculate_accuracy(predicted, target):
     with torch.no_grad():
         batchSize = target.size(0)
-        _, predicted = output.max(1)
-        correct = predicted.eq(target).sum()
+        correct = predicted.eq(target).sum().item()
 
-        return correct * 100.0 / batchSize
+        return (correct / batchSize) * 100.0
 
 
 #
@@ -96,12 +103,12 @@ def train_model(model, device, dataLoader, criterion, optimizer, epoch):
         end = time.time()
 
         losses.update(loss.item(), target.size(0))
-        accuracy.update(calculate_accuracy(output, target).item(), target.size(0))
+        accuracy.update(calculate_accuracy(sigmoid_predict(output), target), target.size(0))
 
         print(f'Epoch: [{epoch}][{i}/{len(dataLoader)}]\t'
               f'Time {batchTime.value:.3f} ({batchTime.average:.3f})\t'
               f'Data {dataTime.value:.3f} ({dataTime.average:.3f})\t'
-              f'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+              f'Loss {losses.value:.4f} ({losses.average:.4f})\t'
               f'Accuracy {accuracy.value:.3f} ({accuracy.average:.3f})')
 
     return losses.average, accuracy.average
@@ -134,15 +141,17 @@ def test_model(model, device, dataLoader, criterion):
             end = time.time()
 
             losses.update(loss.item(), target.size(0))
-            accuracy.update(calculate_accuracy(output, target).item(), target.size(0))
+
+            predicted = sigmoid_predict(output)
+            accuracy.update(calculate_accuracy(predicted, target), target.size(0))
 
             true = target.detach().cpu().numpy().tolist()
-            predicted = output.detach().cpu().max(1)[1].numpy().tolist()
+            predicted = predicted.detach().cpu().numpy().tolist()
             results.extend(list(zip(true, predicted)))
 
             print(f'Test: [{i}/{len(dataLoader)}]\t'
                   f'Time {batchTime.value:.3f} ({batchTime.average:.3f})\t'
-                  f'Loss {loss.val:.4f} ({loss.average:.4f})\t'
+                  f'Loss {losses.value:.4f} ({losses.average:.4f})\t'
                   f'Accuracy {accuracy.value:.3f} ({accuracy.average:.3f})')
 
     return losses.average, accuracy.average, results
@@ -152,7 +161,7 @@ def test_model(model, device, dataLoader, criterion):
 # Citation: Jimeng Sun, (2024). CSE6250: Big Data Analytics in Healthcare Homework 4
 # Used code from train_seizure.py
 #
-def model_runner(train, validation, test):
+def model_runner(train, validation, test, targetVariable):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = GRU()
@@ -183,9 +192,10 @@ def model_runner(train, validation, test):
 
             if validationAccuracy > bestValidationAccuracy:
                 bestValidationAccuracy = validationAccuracy
-                torch.save(model, os.path.join(PATH_OUTPUT, "GRU.pth"))
+                torch.save(model, os.path.join(PATH_OUTPUT, f"{targetVariable}_GRU.pth"))
 
-        plot_learning_curves(trainLosses, validationLosses, trainAccuracies, validationAccuracies, f"{TARGET_VARIABLE.upper()} GRU")
+        plot_learning_curves(trainLosses, validationLosses, trainAccuracies, validationAccuracies,
+                             f"{targetVariable.upper()} GRU")
 
     if MODE.upper() == "BOTH" or MODE.upper() == "TEST":
         testLoader = DataLoader(test, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUMBER_OF_WORKERS)
@@ -193,7 +203,18 @@ def model_runner(train, validation, test):
         bestModel = torch.load(os.path.join(PATH_OUTPUT, "GRU.pth"))
         _, _, testResults = test_model(bestModel, device, testLoader, criterion)
 
-        plot_confusion_matrix(testResults, ["No", "Yes"], f"{TARGET_VARIABLE.upper()} GRU")
+        y_true, y_pred = zip(*testResults)
+
+        aurocScore = roc_auc_score(y_true, y_pred)
+        auprcScore = average_precision_score(y_true, y_pred)
+        f1Score = f1_score(y_true, y_pred)
+
+        print('\nFinal Test scores: \n'
+              f'{targetVariable} AUROC Score: {aurocScore}\n'
+              f'{targetVariable} AUPRC Score: {auprcScore}\n'
+              f'{targetVariable} F1 Score: {f1Score}')
+
+        plot_confusion_matrix(y_true, y_pred, ["No", "Yes"], f"{targetVariable.upper()} GRU")
 
 
 def read_data():
@@ -209,17 +230,17 @@ def read_data():
     return (train_X, train_Y), (validation_X, validation_Y), (test_X, test_Y)
 
 
-def dataframe_to_tensorDataset(train, validation, test):
+def dataframe_to_tensorDataset(train, validation, test, targetVariable):
     train_X, train_Y = train
     validation_X, validation_Y = validation
     test_X, test_Y = test
 
     train = TensorDataset(torch.tensor(train_X.values, dtype=torch.float32).view(-1, 24, 104),
-                          torch.tensor(train_Y[TARGET_VARIABLE].values))
+                          torch.tensor(train_Y[targetVariable].values))
     validation = TensorDataset(torch.tensor(validation_X.values, dtype=torch.float32).view(-1, 24, 104),
-                               torch.tensor(validation_Y[TARGET_VARIABLE].values))
+                               torch.tensor(validation_Y[targetVariable].values))
     test = TensorDataset(torch.tensor(test_X.values, dtype=torch.float32).view(-1, 24, 104),
-                         torch.tensor(test_Y[TARGET_VARIABLE].values))
+                         torch.tensor(test_Y[targetVariable].values))
 
     return train, validation, test
 
@@ -227,6 +248,8 @@ def dataframe_to_tensorDataset(train, validation, test):
 if __name__ == '__main__':
     trainSet, validationSet, testSet = read_data()
 
-    trainSet, validationSet, testSet = dataframe_to_tensorDataset(trainSet, validationSet, testSet)
+    for targetVariable in TARGET_VARIABLES:
+        newTrainSet, newValidationSet, newTestSet = dataframe_to_tensorDataset(trainSet, validationSet, testSet,
+                                                                               targetVariable)
 
-    model_runner(trainSet, validationSet, testSet)
+        model_runner(newTrainSet, newValidationSet, newTestSet, targetVariable)
