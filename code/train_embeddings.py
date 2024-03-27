@@ -11,11 +11,12 @@ import argparse
 
 OUTPUT_MODEL_PATH = "../output/model/"
 OUTPUT_PATH = "../output"
-def train(model):
+def train(model='word2vec'):
     patient_entities = pickle.load(open(f"{OUTPUT_PATH}/patient_entities.pkl", 'rb'))
     preprocess_notes = patient_entities['entities'].apply(lambda x:  [item[0] for item in x] if x else '' )
     
     if model == 'word2vec':
+        # TODO Check hyperparameters
         model_w2vec = gensim.models.Word2Vec(window=10,min_count=2)
         model_w2vec.build_vocab(preprocess_notes,progress_per=10)
 

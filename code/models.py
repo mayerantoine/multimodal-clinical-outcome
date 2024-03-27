@@ -4,108 +4,54 @@ from torch.nn import functional as F
 import pytorch_lightning as pl
 
 
-class ConvolutionNER(nn.Module):
-  def __init__(self, dim_input):
-    super(ConvolutionNER, self).__init__()
-
-    self.conv1 = nn.Conv1d(in_channels=dim_input,out_channels=32,kernel_size=3,padding=2,stride=1)
-    self.conv2 = nn.Conv1d(in_channels=32,out_channels=64,kernel_size=3,padding=2,stride=1)
-    self.conv3 = nn.Conv1d(in_channels=64,out_channels=96,kernel_size=3,padding=2,stride=1)
-    self.globalpooling= nn.AdaptiveMaxPool1d(1)
-    self.flatten = nn.Flatten()
-    self.dropout1= nn.Dropout(0.2)
-    self.fc1 = nn.Linear(in_features=96,out_features=512)
-    self.fc = nn.Linear(in_features=512,out_features=2)
-    
-  def forward(self, input):
-
-    seqs = input
-    #cnn takes input of shape (batch_size, channels, seq_len)
-    out = seqs.permute(0,2,1)
-    out = F.relu(self.conv1(out))
-    out = F.relu(self.conv2(out))
-    out = F.relu(self.conv3(out))
-   
-    out = self.globalpooling(out)
-    out = self.flatten(out)
-    out = F.relu(self.fc1(out))
-    out = self.dropout1(out)
-    out = self.fc(out)
-    
-    return out
   
+class ConvolutionalNERGRU(nn.Module):
+	def __init__(self):
+		super(ConvolutionalNERGRU, self).__init__()
 
-class ConvolutionNERLightning(pl.LightningModule):
-  def __init__(self, dim_input):
-    super(ConvolutionNERLightning, self).__init__()
+		self.conv1 = nn.Conv1d(in_channels=100,out_channels=32,kernel_size=3,padding=2,stride=1)
+		self.conv2 = nn.Conv1d(in_channels=32,out_channels=64,kernel_size=3,padding=2,stride=1)
+		self.conv3 = nn.Conv1d(in_channels=64,out_channels=96,kernel_size=3,padding=2,stride=1)
+		self.globalpooling= nn.AdaptiveMaxPool1d(1)
+		self.flatten = nn.Flatten()
+		self.dropout1= nn.Dropout(0.2)
 
-    self.conv1 = nn.Conv1d(in_channels=dim_input,out_channels=32,kernel_size=3,padding=2,stride=1)
-    self.conv2 = nn.Conv1d(in_channels=32,out_channels=64,kernel_size=3,padding=2,stride=1)
-    self.conv3 = nn.Conv1d(in_channels=64,out_channels=96,kernel_size=3,padding=2,stride=1)
-    self.globalpooling= nn.AdaptiveMaxPool1d(1)
-    self.flatten = nn.Flatten()
-    self.dropout1= nn.Dropout(0.2)
-    self.fc1 = nn.Linear(in_features=96,out_features=512)
-    self.fc = nn.Linear(in_features=512,out_features=2)
-    
-  def forward(self, input):
+		self.gru = nn.GRU(104, 256, dropout=0.2, batch_first=True)
+		self.sigmoid = nn.ReLU()
+		self.hiddenLayer = nn.Linear(352, 2)
 
-    seqs = input
-    #cnn takes input of shape (batch_size, channels, seq_len)
-    out = seqs.permute(0,2,1)
-    out = F.relu(self.conv1(out))
-    out = F.relu(self.conv2(out))
-    out = F.relu(self.conv3(out))
-   
-    out = self.globalpooling(out)
-    out = self.flatten(out)
-    out = F.relu(self.fc1(out))
-    out = self.dropout1(out)
-    out = self.fc(out)
-    
-    return out
-  
-  def training_step(self,batch,batch_idx):
-    x,y = batch
-    output  = self(x)
-    loss = torch.nn.functional.cross_entropy(output,y)
-    return loss
+	def forward(self, input):
+		embed,seqs = input
+		out_gru, _ = self.gru(seqs)
 
-  def configure_optimizers(self) :
-    return torch.optim.Adam(self.parameters(),lr=0.001)
-  
 
-class BaselineTimeSeriesGRU(pl.LightningModule):
-  def __init__(self, dim_input):
-    super(BaselineTimeSeriesGRU, self).__init__()
+		#cnn takes input of shape (batch_size, channels, seq_len)
+		out_embed = embed.permute(0,2,1)
+		out_embed = F.relu(self.conv1(out_embed))
+		out_embed = F.relu(self.conv2(out_embed))
+		out_embed = F.relu(self.conv3(out_embed))
+		out_embed = self.globalpooling(out_embed)
+		out_embed = self.flatten(out_embed)
 
-    self.gru = nn.GRU(input_size=dim_input,hidden_size=256)
-    self.relu = nn.ReLU()
-    self.fc = nn.Linear(256,2)
+		output = torch.concat((out_embed,out_gru[:,-1,:]),dim=1)
 
-  def forward(self,input):
-    out,ht = self.gru(input)
-    out = self.relu(out[:,-1,:])
-    out = self.fc(out)
+		output = self.hiddenLayer(output)
+		output = self.sigmoid(output)
 
-    return out
+		return output
 
-  def training_step(self,batch,batch_idx):
-    x,y = batch
-    output  = self(x)
-    train_loss = torch.nn.functional.cross_entropy(output,y)
+class GRU(nn.Module):
+	def __init__(self):
+		super(GRU, self).__init__()
 
-    self.log('train_loss',train_loss)
-    return train_loss
-  
-  def validation_step(self, batch,batch_idx):
-    x,y = batch
-    output  = self(x)
-    val_loss = torch.nn.functional.cross_entropy(output,y) 
+		self.gru = nn.GRU(104, 256, dropout=0.2, batch_first=True)
+		self.sigmoid = nn.Sigmoid()
+		self.hiddenLayer = nn.Linear(256, 2)
 
-    self.log('val_loss',val_loss)
-    return val_loss
+	def forward(self, input):
+		output, _ = self.gru(input)
+		output = self.hiddenLayer(output[:, -1, :])
+		output = self.sigmoid(output)
 
-  def configure_optimizers(self) :
-    return torch.optim.Adam(self.parameters(),lr=0.001)
+		return output
 

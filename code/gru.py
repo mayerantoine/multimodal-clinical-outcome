@@ -14,7 +14,7 @@ from operator import itemgetter
 MODE = "BOTH"  # Options: 'BOTH', 'TRAIN', 'TEST'
 TARGET_VARIABLES = ["los_3", "los_7"]  # Options: 'mort_hosp', 'mort_icu', 'los_3', 'los_7'
 NUMBER_OF_WORKERS = 0
-EPOCHS = 10
+EPOCHS = 1
 BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 SIGMOID_THRESHOLD = 0.5
@@ -80,7 +80,7 @@ class ConvolutionalNERGRU(nn.Module):
 		self.dropout1= nn.Dropout(0.2)
 
 		self.gru = nn.GRU(104, 256, dropout=0.2, batch_first=True)
-		self.sigmoid = nn.Sigmoid()
+		self.sigmoid = nn.ReLU()
 		self.hiddenLayer = nn.Linear(352, 2)
 
 	def forward(self, input):
@@ -261,6 +261,7 @@ def model_runner(train, validation, test, targetVariable):
 	model.to(device)
 
 	criterion = nn.CrossEntropyLoss()
+	#criterion = nn.BCEWithLogitsLoss()
 	criterion.to(device)
 
 	if MODE.upper() == "BOTH" or MODE.upper() == "TRAIN":
@@ -350,7 +351,7 @@ def dataframe_to_tensorDataset(train, validation, test, targetVariable,embedding
 	validation_embed = embeddings[embeddings['SUBJECT_ID'].isin(validation_X.index.get_level_values("subject_id"))]
 	test_embed = embeddings[embeddings['SUBJECT_ID'].isin(test_X.index.get_level_values("subject_id"))]
 	
-	data_train = torch.tensor(train_X.values, dtype=torch.float32).view(-1, 24, 104)
+	# data_train = torch.tensor(train_X.values, dtype=torch.float32).view(-1, 24, 104)
 	#print("train shape:",data_train.shape)
 	#print("train index=",data_train[0].shape)
 	#print(len(set(train_X.index.get_level_values("subject_id"))))
